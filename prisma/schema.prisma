@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  TECHNICIAN
+  MANAGER
+}
+
+enum EquipmentCategory {
+  MACHINE
+  VEHICLE
+  IT
+}
+
+enum RequestType {
+  CORRECTIVE
+  PREVENTIVE
+}
+
+enum RequestStage {
+  NEW
+  IN_PROGRESS
+  REPAIRED
+  SCRAP
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      Role     @default(EMPLOYEE)
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  assignedEquipment       Equipment[]          @relation("AssignedEmployee")
+  createdRequests         MaintenanceRequest[] @relation("CreatedBy")
+  assignedRequests        MaintenanceRequest[] @relation("AssignedTechnician")
+  maintenanceTeams        MaintenanceTeam[]    @relation("TeamTechnicians")
+  maintenanceRequestNotes MaintenanceNote[]
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  equipment Equipment[]
+}
+
+model Equipment {
+  id               String            @id @default(cuid())
+  name             String
+  serialNumber     String            @unique
+  category         EquipmentCategory
+  location         String
+  purchaseDate     DateTime
+  warrantyEndDate  DateTime?
+  isScrapped       Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  departmentId        String
+  department          Department       @relation(fields: [departmentId], references: [id])
+  assignedEmployeeId  String?
+  assignedEmployee    User?            @relation("AssignedEmployee", fields: [assignedEmployeeId], references: [id])
+  maintenanceTeamId   String
+  maintenanceTeam     MaintenanceTeam  @relation(fields: [maintenanceTeamId], references: [id])
+  maintenanceRequests MaintenanceRequest[]
+}
+
+model MaintenanceTeam {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  specialization String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  technicians         User[]               @relation("TeamTechnicians")
+  equipment           Equipment[]
+  maintenanceRequests MaintenanceRequest[]
+}
+
+model MaintenanceRequest {
+  id            String       @id @default(cuid())
+  subject       String
+  requestType   RequestType
+  stage         RequestStage @default(NEW)
+  scheduledDate DateTime?
+  durationHours Float?
+  priority      Int          @default(1)
+  description   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  equipmentId          String
+  equipment            Equipment       @relation(fields: [equipmentId], references: [id])
+  maintenanceTeamId    String
+  maintenanceTeam      MaintenanceTeam @relation(fields: [maintenanceTeamId], references: [id])
+  assignedTechnicianId String?
+  assignedTechnician   User?           @relation("AssignedTechnician", fields: [assignedTechnicianId], references: [id])
+  createdById          String
+  createdBy            User            @relation("CreatedBy", fields: [createdById], references: [id])
+
+  notes MaintenanceNote[]
+
+  @@index([stage])
+  @@index([equipmentId])
+  @@index([scheduledDate])
+}
+
+model MaintenanceNote {
+  id        String   @id @default(cuid())
+  content   String
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  requestId String
+  request   MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?              @relation(fields: [userId], references: [id])
+}
